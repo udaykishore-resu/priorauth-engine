@@ -81,7 +81,7 @@ func do(t *testing.T, ts *httptest.Server, method, path string, body []byte, hdr
 	}
 	resp, err := ts.Client().Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // test: close error is irrelevant
 	raw, _ := io.ReadAll(resp.Body)
 	var out map[string]any
 	if len(raw) > 0 && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
@@ -163,7 +163,7 @@ func TestEndToEndOverHTTP(t *testing.T) {
 	resp, err := ts.Client().Get(ts.URL + "/metrics")
 	require.NoError(t, err)
 	raw, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Contains(t, string(raw), `priorauth_http_requests_total{method="POST",route="/v1/requests/{id}/submit",status="200"}`)
 	require.Contains(t, string(raw), `priorauth_determinations_total{criteria="met",decision="required",rule="acme.imaging.mri-lumbar-spine@3"}`)
 	require.Contains(t, string(raw), `priorauth_state_transitions_total{to_state="approved"}`)

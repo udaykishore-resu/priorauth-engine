@@ -347,8 +347,10 @@ func (r *Request) MarkSubmitted(claimID, payerRef string, bundle []byte, at time
 	if r.Submission != nil {
 		attempt = r.Submission.Attempt + 1
 	}
-	evs := []Event{Submitted{ClaimID: claimID, PayerRef: payerRef, Attempt: attempt, Appeal: r.State == StateAppealed, Bundle: bundle}}
-	evs = append(evs, r.resolve(ExcSubmitFailed, "submitted")...)
+	resolved := r.resolve(ExcSubmitFailed, "submitted")
+	evs := make([]Event, 0, 1+len(resolved))
+	evs = append(evs, Submitted{ClaimID: claimID, PayerRef: payerRef, Attempt: attempt, Appeal: r.State == StateAppealed, Bundle: bundle})
+	evs = append(evs, resolved...)
 	return evs, nil
 }
 
@@ -490,8 +492,10 @@ func (r *Request) Breach(t Timer, deadline, at time.Time) []Event {
 	if r.hasBreached(t) || r.State.Terminal() {
 		return nil
 	}
-	evs := []Event{SLABreached{Timer: t, Deadline: deadline}}
-	evs = append(evs, r.raise(at, ExcSLAPrefix+string(t), fmt.Sprintf("%s SLA missed (deadline %s)", t, deadline.UTC().Format(time.RFC3339)), "warning")...)
+	raised := r.raise(at, ExcSLAPrefix+string(t), fmt.Sprintf("%s SLA missed (deadline %s)", t, deadline.UTC().Format(time.RFC3339)), "warning")
+	evs := make([]Event, 0, 1+len(raised))
+	evs = append(evs, SLABreached{Timer: t, Deadline: deadline})
+	evs = append(evs, raised...)
 	return evs
 }
 

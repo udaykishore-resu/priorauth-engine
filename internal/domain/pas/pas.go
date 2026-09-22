@@ -425,7 +425,7 @@ func BuildResponse(id, claimID, patientRef string, outcome workflow.PayerOutcome
 		resp["preAuthPeriod"] = Map{"start": now.Format("2006-01-02"), "end": now.AddDate(0, 3, 0).Format("2006-01-02")}
 	}
 	if len(reasons) > 0 {
-		var notes []Map
+		notes := make([]Map, 0, len(reasons))
 		for i, r := range reasons {
 			notes = append(notes, Map{"number": i + 1, "type": "display", "text": r})
 		}

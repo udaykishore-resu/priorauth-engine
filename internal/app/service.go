@@ -75,7 +75,7 @@ func New(d Deps) (*Service, error) {
 		d.Metrics = observability.NewMetrics()
 	}
 	if d.NewID == nil {
-		d.NewID = func() string { return uuid.NewString() }
+		d.NewID = uuid.NewString
 	}
 	s := &Service{d: d, tracer: observability.Tracer()}
 	d.Metrics.RulesLoaded.Set(float64(len(d.Rules.Current().Rules)))
@@ -159,7 +159,7 @@ func (s *Service) Determine(ctx context.Context, id string) (*workflow.Request, 
 	now := s.d.Clock()
 	facts, err := s.d.Structured.Extract(ctx, s.input(r, now, false))
 	if err != nil {
-		return nil, fmt.Errorf("%w: structured extraction: %v", workflow.ErrValidation, err)
+		return nil, fmt.Errorf("%w: structured extraction: %w", workflow.ErrValidation, err)
 	}
 	set := s.d.Rules.Current()
 	det := set.Determine(r.RuleRequest(), facts, now)
@@ -192,7 +192,7 @@ func (s *Service) Assemble(ctx context.Context, id string) (*workflow.Request, e
 	now := s.d.Clock()
 	facts, err := s.d.Structured.Extract(ctx, s.input(r, now, false))
 	if err != nil {
-		return nil, fmt.Errorf("%w: structured extraction: %v", workflow.ErrValidation, err)
+		return nil, fmt.Errorf("%w: structured extraction: %w", workflow.ErrValidation, err)
 	}
 	names := []string{s.d.Structured.Name()}
 	var warnings []string
@@ -254,7 +254,7 @@ func (s *Service) Submit(ctx context.Context, id string) (*workflow.Request, err
 			}
 		}
 		span.SetStatus(codes.Error, err.Error())
-		return r, fmt.Errorf("%w: %v", ErrPayerUnavailable, err)
+		return r, fmt.Errorf("%w: %w", ErrPayerUnavailable, err)
 	}
 	decision, ierr := pas.Interpret(resp, now)
 	evs, err := r.MarkSubmitted(claimID, decision.PayerRef, bundle, now)
@@ -326,7 +326,7 @@ func (s *Service) Sync(ctx context.Context, id string) (*workflow.Request, error
 	resp, err := s.d.Gateway.Inquire(ctx, r.Submission.PayerRef)
 	s.d.Metrics.PayerLatency.WithLabelValues("inquire", resultLabel(err)).Observe(time.Since(start).Seconds())
 	if err != nil {
-		return r, fmt.Errorf("%w: %v", ErrPayerUnavailable, err)
+		return r, fmt.Errorf("%w: %w", ErrPayerUnavailable, err)
 	}
 	decision, err := pas.Interpret(resp, now)
 	if err != nil {

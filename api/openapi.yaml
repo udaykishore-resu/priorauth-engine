@@ -16,16 +16,25 @@ info:
     name: Apache-2.0
     identifier: Apache-2.0
 servers:
-  - url: http://localhost:8080
+  - url: http://127.0.0.1:8080
+    description: Local development (default PA_HTTP_ADDR)
+security:
+  - bearerAuth: []
 tags:
   - name: requests
+    description: Prior authorization request lifecycle commands and projections.
   - name: queue
+    description: Human work queue of open exceptions.
   - name: rules
+    description: The active, hot-reloadable coverage rule set.
   - name: metrics
+    description: Aggregate operational statistics.
   - name: ops
+    description: Liveness, readiness and Prometheus endpoints (unauthenticated).
 paths:
   /v1/requests:
     post:
+      operationId: createRequest
       tags: [requests]
       summary: Create a prior authorization request (idempotent)
       description: |
@@ -59,6 +68,7 @@ paths:
         '400': { $ref: '#/components/responses/Validation' }
         '413': { $ref: '#/components/responses/TooLarge' }
     get:
+      operationId: listRequests
       tags: [requests]
       summary: List requests (newest first)
       parameters:
@@ -92,6 +102,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     get:
+      operationId: getRequest
       tags: [requests]
       summary: Get the projected request document
       responses:
@@ -101,6 +112,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     get:
+      operationId: listRequestEvents
       tags: [requests]
       summary: Raw event stream (audit)
       responses:
@@ -121,6 +133,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     post:
+      operationId: determineRequest
       tags: [requests]
       summary: Run the deterministic coverage-rule determination
       description: |
@@ -136,6 +149,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     post:
+      operationId: assembleRequest
       tags: [requests]
       summary: Assemble the evidence package
       description: |
@@ -152,6 +166,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     post:
+      operationId: submitRequest
       tags: [requests]
       summary: Build the PAS Claim bundle and submit it to the payer
       description: |
@@ -176,6 +191,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     post:
+      operationId: syncRequest
       tags: [requests]
       summary: Inquire the payer about a submitted/pended/appealed request now
       responses:
@@ -187,6 +203,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/id'
     post:
+      operationId: reviewRequest
       tags: [requests]
       summary: Record a human decision
       requestBody:
@@ -201,6 +218,7 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
   /v1/queue/exceptions:
     get:
+      operationId: listExceptions
       tags: [queue]
       summary: The human work queue, ordered by severity, urgency and age
       responses:
@@ -215,8 +233,10 @@ paths:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/ExceptionItem' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /v1/rules:
     get:
+      operationId: getRules
       tags: [rules]
       summary: The active, versioned rule set
       responses:
@@ -225,8 +245,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RuleSet' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /v1/metrics/turnaround:
     get:
+      operationId: getTurnaroundStats
       tags: [metrics]
       summary: Turnaround statistics (created → final decision)
       responses:
@@ -235,10 +257,13 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TurnaroundStats' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /healthz:
     get:
+      operationId: healthz
       tags: [ops]
       summary: Liveness
+      security: []
       responses:
         '200':
           description: OK
@@ -249,23 +274,37 @@ paths:
                 properties:
                   status: { type: string }
                   version: { type: string }
+        '4XX': { $ref: '#/components/responses/Error' }
   /readyz:
     get:
+      operationId: readyz
       tags: [ops]
       summary: Readiness (repository, payer gateway, rules); 503 while draining
+      security: []
       responses:
         '200': { description: Ready }
         '503': { description: Not ready or draining }
+        '4XX': { $ref: '#/components/responses/Error' }
   /metrics:
     get:
+      operationId: metrics
       tags: [ops]
       summary: Prometheus exposition
+      security: []
       responses:
         '200':
           description: OK
           content:
             text/plain: {}
+        '4XX': { $ref: '#/components/responses/Error' }
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Bearer token on `/v1/*`. The engine itself does not validate tokens; deploy it behind
+        an API gateway or sidecar that enforces this scheme. Ops endpoints are unauthenticated.
   parameters:
     id:
       in: path
@@ -300,6 +339,11 @@ components:
           schema: { $ref: '#/components/schemas/Error' }
     PayerUnavailable:
       description: Payer transport failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Error:
+      description: Unexpected error (see `code`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

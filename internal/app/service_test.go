@@ -622,7 +622,7 @@ func TestPercentiles(t *testing.T) {
 }
 
 func exceptionCodes(r *workflow.Request) []string {
-	var out []string
+	out := make([]string, 0, len(r.Exceptions))
 	for _, x := range r.Exceptions {
 		out = append(out, x.Code)
 	}

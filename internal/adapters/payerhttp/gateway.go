@@ -68,9 +68,9 @@ func (g *Gateway) Ping(ctx context.Context) error {
 	}
 	resp, err := g.Client.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrPayerUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrPayerUnavailable, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // best-effort close; body already drained
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode >= 500 {
 		return fmt.Errorf("%w: status %d", ErrPayerUnavailable, resp.StatusCode)
@@ -125,12 +125,12 @@ func (g *Gateway) once(ctx context.Context, method, target string, body []byte) 
 	}
 	resp, err := g.Client.Do(req)
 	if err != nil {
-		return nil, true, fmt.Errorf("%w: %v", ErrPayerUnavailable, err)
+		return nil, true, fmt.Errorf("%w: %w", ErrPayerUnavailable, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // best-effort close; response already read
 	out, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
-		return nil, true, fmt.Errorf("%w: read body: %v", ErrPayerUnavailable, err)
+		return nil, true, fmt.Errorf("%w: read body: %w", ErrPayerUnavailable, err)
 	}
 	switch {
 	case resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests:

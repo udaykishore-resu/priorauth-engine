@@ -117,59 +117,62 @@ type Metrics struct {
 func NewMetrics() *Metrics {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewGoCollector(), collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	f := promauto{reg}
-	ns := "priorauth"
+	f := promauto{reg: reg, ns: "priorauth"}
 	m := &Metrics{
 		Registry:     reg,
-		HTTPRequests: f.counter(ns, "http_requests_total", "HTTP requests by route, method and status.", "route", "method", "status"),
-		HTTPDuration: f.histogram(ns, "http_request_duration_seconds", "HTTP request latency.", []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, "route", "method"),
-		HTTPInFlight: f.gauge(ns, "http_in_flight_requests", "HTTP requests currently being served."),
+		HTTPRequests: f.counter("http_requests_total", "HTTP requests by route, method and status.", "route", "method", "status"),
+		HTTPDuration: f.histogram("http_request_duration_seconds", "HTTP request latency.", []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, "route", "method"),
+		HTTPInFlight: f.gauge("http_in_flight_requests", "HTTP requests currently being served."),
 
-		Determinations:  f.counter(ns, "determinations_total", "Rule determinations by decision, criteria outcome and rule.", "decision", "criteria", "rule"),
-		Submissions:     f.counter(ns, "submissions_total", "PAS submissions by result.", "result"),
-		PayerDecisions:  f.counter(ns, "payer_decisions_total", "Interpreted payer decisions.", "outcome"),
-		Transitions:     f.counter(ns, "state_transitions_total", "Request state transitions.", "to_state"),
-		ExceptionsOpen:  f.gaugeVec(ns, "exceptions_open", "Open exceptions on the work queue.", "code"),
-		ExceptionsTotal: f.counter(ns, "exceptions_total", "Exceptions raised.", "code"),
-		SLABreaches:     f.counter(ns, "sla_breaches_total", "SLA timer breaches.", "timer"),
-		Turnaround:      f.histogram(ns, "turnaround_seconds", "Created → final decision.", []float64{60, 300, 900, 3600, 4 * 3600, 24 * 3600, 3 * 24 * 3600, 7 * 24 * 3600}, "payer", "outcome"),
-		Proposals:       f.counter(ns, "llm_proposals_total", "LLM evidence proposals by corroboration.", "corroborated"),
-		RulesLoaded:     f.gauge(ns, "rules_loaded", "Rules in the active set."),
-		RuleReloads:     f.counterPlain(ns, "rule_reloads_total", "Successful hot reloads."),
-		PayerLatency:    f.histogram(ns, "payer_gateway_duration_seconds", "Payer gateway latency.", []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 30}, "op", "result"),
-		EventsPublished: f.counter(ns, "events_published_total", "Domain events published downstream.", "result"),
+		Determinations:  f.counter("determinations_total", "Rule determinations by decision, criteria outcome and rule.", "decision", "criteria", "rule"),
+		Submissions:     f.counter("submissions_total", "PAS submissions by result.", "result"),
+		PayerDecisions:  f.counter("payer_decisions_total", "Interpreted payer decisions.", "outcome"),
+		Transitions:     f.counter("state_transitions_total", "Request state transitions.", "to_state"),
+		ExceptionsOpen:  f.gaugeVec("exceptions_open", "Open exceptions on the work queue.", "code"),
+		ExceptionsTotal: f.counter("exceptions_total", "Exceptions raised.", "code"),
+		SLABreaches:     f.counter("sla_breaches_total", "SLA timer breaches.", "timer"),
+		Turnaround:      f.histogram("turnaround_seconds", "Created → final decision.", []float64{60, 300, 900, 3600, 4 * 3600, 24 * 3600, 3 * 24 * 3600, 7 * 24 * 3600}, "payer", "outcome"),
+		Proposals:       f.counter("llm_proposals_total", "LLM evidence proposals by corroboration.", "corroborated"),
+		RulesLoaded:     f.gauge("rules_loaded", "Rules in the active set."),
+		RuleReloads:     f.counterPlain("rule_reloads_total", "Successful hot reloads."),
+		PayerLatency:    f.histogram("payer_gateway_duration_seconds", "Payer gateway latency.", []float64{.05, .1, .25, .5, 1, 2.5, 5, 10, 30}, "op", "result"),
+		EventsPublished: f.counter("events_published_total", "Domain events published downstream.", "result"),
 	}
 	return m
 }
 
-type promauto struct{ reg *prometheus.Registry }
+// promauto registers series on a single registry under one namespace.
+type promauto struct {
+	reg *prometheus.Registry
+	ns  string
+}
 
-func (p promauto) counter(ns, name, help string, labels ...string) *prometheus.CounterVec {
-	c := prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: ns, Name: name, Help: help}, labels)
+func (p promauto) counter(name, help string, labels ...string) *prometheus.CounterVec {
+	c := prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: p.ns, Name: name, Help: help}, labels)
 	p.reg.MustRegister(c)
 	return c
 }
 
-func (p promauto) counterPlain(ns, name, help string) prometheus.Counter {
-	c := prometheus.NewCounter(prometheus.CounterOpts{Namespace: ns, Name: name, Help: help})
+func (p promauto) counterPlain(name, help string) prometheus.Counter {
+	c := prometheus.NewCounter(prometheus.CounterOpts{Namespace: p.ns, Name: name, Help: help})
 	p.reg.MustRegister(c)
 	return c
 }
 
-func (p promauto) gauge(ns, name, help string) prometheus.Gauge {
-	g := prometheus.NewGauge(prometheus.GaugeOpts{Namespace: ns, Name: name, Help: help})
+func (p promauto) gauge(name, help string) prometheus.Gauge {
+	g := prometheus.NewGauge(prometheus.GaugeOpts{Namespace: p.ns, Name: name, Help: help})
 	p.reg.MustRegister(g)
 	return g
 }
 
-func (p promauto) gaugeVec(ns, name, help string, labels ...string) *prometheus.GaugeVec {
-	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{Namespace: ns, Name: name, Help: help}, labels)
+func (p promauto) gaugeVec(name, help string, labels ...string) *prometheus.GaugeVec {
+	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{Namespace: p.ns, Name: name, Help: help}, labels)
 	p.reg.MustRegister(g)
 	return g
 }
 
-func (p promauto) histogram(ns, name, help string, buckets []float64, labels ...string) *prometheus.HistogramVec {
-	h := prometheus.NewHistogramVec(prometheus.HistogramOpts{Namespace: ns, Name: name, Help: help, Buckets: buckets}, labels)
+func (p promauto) histogram(name, help string, buckets []float64, labels ...string) *prometheus.HistogramVec {
+	h := prometheus.NewHistogramVec(prometheus.HistogramOpts{Namespace: p.ns, Name: name, Help: help, Buckets: buckets}, labels)
 	p.reg.MustRegister(h)
 	return h
 }

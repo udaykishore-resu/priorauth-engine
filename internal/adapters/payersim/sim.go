@@ -173,7 +173,7 @@ func summarize(bundle []byte) (claimSummary, error) {
 			}
 		}
 		if s.claimID == "" {
-			return s, errors.New("Claim has no id")
+			return s, errors.New("claim has no id")
 		}
 		return s, nil
 	}
@@ -401,7 +401,7 @@ func (e *Engine) Handler() http.Handler {
 }
 
 func readBody(r *http.Request, limit int64) ([]byte, error) {
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }() // server-side request body; close error is not actionable
 	body, err := io.ReadAll(io.LimitReader(r.Body, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
@@ -418,5 +418,5 @@ func readBody(r *http.Request, limit int64) ([]byte, error) {
 func writeFHIR(w http.ResponseWriter, status int, body []byte) {
 	w.Header().Set("Content-Type", "application/fhir+json")
 	w.WriteHeader(status)
-	_, _ = w.Write(body)
+	_, _ = w.Write(body) //nolint:gosec // G705 false positive: body is json.Marshal output served as application/fhir+json, not HTML
 }

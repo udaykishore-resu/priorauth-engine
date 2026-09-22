@@ -257,7 +257,7 @@ func (s *Server) decode(w http.ResponseWriter, r *http.Request, v any) bool {
 			writeJSON(w, http.StatusRequestEntityTooLarge, errBody("body_too_large", err.Error()))
 			return false
 		}
-		s.writeError(w, r, fmt.Errorf("%w: invalid JSON body: %v", workflow.ErrValidation, err))
+		s.writeError(w, r, fmt.Errorf("%w: invalid JSON body: %w", workflow.ErrValidation, err))
 		return false
 	}
 	return true

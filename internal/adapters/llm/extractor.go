@@ -159,7 +159,7 @@ func (e *Extractor) extractNote(ctx context.Context, note evidence.Note) (eviden
 	if err != nil {
 		return nil, fmt.Errorf("llm: call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() // best-effort close; response already read
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
 		return nil, fmt.Errorf("llm: read: %w", err)

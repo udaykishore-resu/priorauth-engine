@@ -165,7 +165,7 @@ func TestHTTPHandlerWithGateway(t *testing.T) {
 	require.NoError(t, err)
 	var cr map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&cr))
-	resp.Body.Close()
+	require.NoError(t, resp.Body.Close())
 	require.Equal(t, "application/fhir+json", resp.Header.Get("Content-Type"))
 	require.Contains(t, cr["disposition"], "Clinical criteria not met")
 
@@ -173,28 +173,28 @@ func TestHTTPHandlerWithGateway(t *testing.T) {
 	req, _ = http.NewRequest(http.MethodPut, srv.URL+"/admin/mode", strings.NewReader(`{"mode":"approve"}`))
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 	req, _ = http.NewRequest(http.MethodPut, srv.URL+"/admin/mode", strings.NewReader(`{"mode":"nope"}`))
 	resp, err = http.DefaultClient.Do(req)
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	resp, err = http.Get(srv.URL + "/admin/stats")
 	require.NoError(t, err)
 	var stats map[string]int
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&stats))
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Equal(t, 2, stats["records"])
 	resp, err = http.Get(srv.URL + "/healthz")
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Equal(t, http.StatusNoContent, resp.StatusCode)
 
 	// Empty body rejected.
 	resp, err = http.Post(srv.URL+"/Claim/$submit", "application/fhir+json", nil)
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 
 	// Cancelled context aborts the latency sleep.
@@ -257,7 +257,7 @@ func TestErrorInjection(t *testing.T) {
 	defer srv.Close()
 	resp, err := http.Post(srv.URL+"/Claim/$submit", "application/fhir+json", strings.NewReader(string(bundle(1, 1))))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close() // test: close error is irrelevant
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	require.Equal(t, 2, e.Stats()["errors"])
 }
