@@ -1,0 +1,134 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/udaykishore-resu/priorauth-engine
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# Non-secret configuration → ConfigMap (env). Keys are the PA_* variables.
+config:
+  PA_LOG_LEVEL: info
+  PA_STORAGE: postgres
+  PA_EVENTS: kafka
+  PA_KAFKA_BROKERS: kafka.kafka.svc:9092
+  PA_KAFKA_TOPIC: priorauth.events
+  PA_PAYER: http
+  PA_PAYER_BASE_URL: http://payer-gateway.priorauth.svc:8081
+  PA_PAYER_POLL_INTERVAL: 30s
+  PA_SLA_TICK: 1m
+  PA_SLA_DETERMINE: 4h
+  PA_SLA_ASSEMBLE: 24h
+  PA_SLA_SUBMIT: 24h
+  PA_SLA_RESPONSE: 72h
+  PA_SLA_PENDED: 168h
+  PA_SLA_REVIEW: 48h
+  PA_SLA_URGENT_FACTOR: "0.25"
+  PA_OTLP_ENDPOINT: http://otel-collector.observability.svc:4318
+  PA_RULES_DIR: /app/rules
+
+# Secrets are NOT created by this chart. Point at an existing Secret that
+# holds PA_POSTGRES_DSN (and optionally PA_LLM_API_KEY / PA_LLM_BASE_URL).
+existingSecret: priorauth-engine-secrets
+
+# Rule files mounted over /app/rules from a ConfigMap. Empty → use the
+# rules baked into the image.
+rules:
+  configMap: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Namespaces/pods allowed to call the API (label selectors).
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+  # Egress is limited to DNS + the listed CIDRs/ports (Postgres, Kafka, payer, OTLP).
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - { port: 5432, protocol: TCP }
+        - { port: 9092, protocol: TCP }
+        - { port: 8081, protocol: TCP }
+        - { port: 4318, protocol: TCP }
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop: ["ALL"]
+
+podSecurityContext:
+  fsGroup: 65532
+
+probes:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+
+terminationGracePeriodSeconds: 30
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: priorauth-engine

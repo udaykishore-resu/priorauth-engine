@@ -1,0 +1,8 @@
+bin/
+coverage.out
+*.test
+*.out
+.idea/
+.vscode/
+.DS_Store
+testdata/fuzz/

@@ -1,0 +1,42 @@
+{
+  "id": "acme.rehab.physical-therapy",
+  "version": 2,
+  "name": "Outpatient physical therapy (9711x/9714x/97530)",
+  "payer": "ACME_HEALTH",
+  "plan": "*",
+  "service_codes": ["97110", "97112", "97116", "97140", "97530"],
+  "effective_from": "2026-01-01T00:00:00Z",
+  "requires_auth": true,
+  "source": "ACME Rehab Policy RP-PT-002 rev 2025-11",
+  "criteria": {
+    "description": "outpatient PT episode is medically necessary",
+    "all": [
+      {
+        "description": "musculoskeletal, neurological or post-surgical diagnosis in the last 365 days",
+        "fact": "diagnosis",
+        "codes": ["M*", "S*", "G81.*", "G82.*", "I69.*", "Z47.*", "Z98.89*"],
+        "within_days": 365
+      },
+      {
+        "description": "PT evaluation completed within the last 60 days",
+        "fact": "procedure",
+        "codes": ["97161", "97162", "97163", "97164"],
+        "within_days": 60
+      },
+      {
+        "description": "no more than 12 visits already used in the last 90 days",
+        "not": {
+          "fact": "procedure",
+          "codes": ["97110", "97112", "97116", "97140", "97530"],
+          "min_count": 13,
+          "within_days": 90
+        }
+      }
+    ]
+  },
+  "documentation": [
+    { "code": "pt_evaluation", "display": "Initial PT evaluation with objective functional measures" },
+    { "code": "plan_of_care", "display": "Signed plan of care with frequency, duration and goals" },
+    { "code": "referral", "display": "Physician referral or order", "optional": true }
+  ]
+}

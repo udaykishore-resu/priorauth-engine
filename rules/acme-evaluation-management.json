@@ -1,0 +1,10 @@
+{
+  "id": "acme.professional.office-visits",
+  "version": 1,
+  "name": "Office / outpatient E&M visits never require prior authorization",
+  "payer": "ACME_HEALTH",
+  "plan": "*",
+  "service_codes": ["9920*", "9921*"],
+  "requires_auth": false,
+  "source": "ACME Provider Manual 2026, chapter 7"
+}

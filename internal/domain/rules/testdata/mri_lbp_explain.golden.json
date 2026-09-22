@@ -1,0 +1,93 @@
+{
+  "decision": "required",
+  "rule_ref": "acme.imaging.mri-lumbar-spine@3",
+  "rule_name": "MRI lumbar spine (72148/72149/72158)",
+  "rule_set_hash": "\u003chash\u003e",
+  "criteria": "met",
+  "explain": {
+    "description": "MRI lumbar spine is medically necessary",
+    "outcome": "met",
+    "children": [
+      {
+        "description": "adult (\u003e= 18 years)",
+        "outcome": "met",
+        "reason": "age is 55",
+        "evidence": [
+          "demo-age"
+        ]
+      },
+      {
+        "description": "qualifying lumbar diagnosis",
+        "outcome": "met",
+        "reason": "2 matching",
+        "evidence": [
+          "Condition/cond-1#0",
+          "Condition/cond-2#0"
+        ]
+      },
+      {
+        "description": "red flag present OR conservative therapy failed",
+        "outcome": "met",
+        "children": [
+          {
+            "description": "red flag diagnosis (cauda equina, malignancy, infection, trauma)",
+            "outcome": "not_met",
+            "reason": "0 matching, need 1"
+          },
+          {
+            "description": "progressive neurological deficit documented",
+            "outcome": "unknown",
+            "reason": "observation not on file"
+          },
+          {
+            "description": "\u003e= 6 weeks conservative therapy",
+            "outcome": "met",
+            "reason": "1 met, 0 unknown",
+            "children": [
+              {
+                "description": "\u003e= 6 physical therapy visits in the last 180 days",
+                "outcome": "not_met",
+                "reason": "4 matching, need 6",
+                "evidence": [
+                  "Procedure/pt-1#0",
+                  "Procedure/pt-2#0",
+                  "Procedure/pt-3#0",
+                  "Procedure/pt-4#0"
+                ]
+              },
+              {
+                "description": "NSAID or muscle relaxant trial \u003e= 42 days",
+                "outcome": "met",
+                "reason": "on therapy 114 days",
+                "evidence": [
+                  "MedicationStatement/med-naproxen#0"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "documentation": [
+    {
+      "code": "clinical_note",
+      "display": "Progress note with history, exam and neurological findings (last 60 days)"
+    },
+    {
+      "code": "imaging_order",
+      "display": "Signed imaging order with clinical indication"
+    },
+    {
+      "code": "conservative_therapy_log",
+      "display": "Record of PT visits and/or medication trial with dates"
+    },
+    {
+      "code": "prior_imaging_report",
+      "display": "Prior lumbar X-ray report, if performed",
+      "optional": true
+    }
+  ],
+  "facts_used": 11,
+  "evaluated_at": "2026-09-01T00:00:00Z"
+}

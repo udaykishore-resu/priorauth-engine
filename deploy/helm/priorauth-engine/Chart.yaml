@@ -1,0 +1,12 @@
+apiVersion: v2
+name: priorauth-engine
+description: Prior authorization automation engine - deterministic coverage rules, evidence assembly, PAS submission tracking.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/udaykishore-resu/priorauth-engine
+sources:
+  - https://github.com/udaykishore-resu/priorauth-engine
+maintainers:
+  - name: Udaykishore Resu
+keywords: [healthcare, prior-authorization, fhir, event-sourcing]

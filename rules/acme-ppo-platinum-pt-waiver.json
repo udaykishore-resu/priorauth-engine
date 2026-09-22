@@ -1,0 +1,11 @@
+{
+  "id": "acme.rehab.physical-therapy.ppo-platinum-waiver",
+  "version": 1,
+  "name": "PPO Platinum: outpatient PT does not require prior authorization",
+  "payer": "ACME_HEALTH",
+  "plan": "PPO-PLATINUM",
+  "service_codes": ["97110", "97112", "97116", "97140", "97530"],
+  "effective_from": "2026-01-01T00:00:00Z",
+  "requires_auth": false,
+  "source": "ACME PPO Platinum Evidence of Coverage 2026, section 4.3"
+}

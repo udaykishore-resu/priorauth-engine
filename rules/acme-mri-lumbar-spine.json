@@ -1,0 +1,65 @@
+{
+  "id": "acme.imaging.mri-lumbar-spine",
+  "version": 3,
+  "name": "MRI lumbar spine (72148/72149/72158)",
+  "payer": "ACME_HEALTH",
+  "plan": "*",
+  "service_codes": ["72148", "72149", "72158"],
+  "effective_from": "2026-01-01T00:00:00Z",
+  "requires_auth": true,
+  "source": "ACME Clinical Policy CP-IMG-014 rev 2026-01",
+  "criteria": {
+    "description": "MRI lumbar spine is medically necessary",
+    "all": [
+      { "fact": "age", "op": ">=", "value": 18, "description": "adult (>= 18 years)" },
+      {
+        "description": "qualifying lumbar diagnosis",
+        "fact": "diagnosis",
+        "codes": ["M54.5*", "M54.1*", "M54.4*", "M51.1*", "M51.2*", "M51.3*", "M48.06*", "M47.81*", "M43.1*"],
+        "status": ["active", "recurrence", "relapse"]
+      },
+      {
+        "description": "red flag present OR conservative therapy failed",
+        "any": [
+          {
+            "description": "red flag diagnosis (cauda equina, malignancy, infection, trauma)",
+            "fact": "diagnosis",
+            "codes": ["G83.4", "C79.51", "C79.52", "M46.2*", "M46.3*", "S32.0*"]
+          },
+          {
+            "description": "progressive neurological deficit documented",
+            "fact": "observation",
+            "code": "PA-NEURO-DEFICIT"
+          },
+          {
+            "description": ">= 6 weeks conservative therapy",
+            "at_least": {
+              "n": 1,
+              "of": [
+                {
+                  "description": ">= 6 physical therapy visits in the last 180 days",
+                  "fact": "procedure",
+                  "codes": ["97110", "97112", "97140", "97530"],
+                  "min_count": 6,
+                  "within_days": 180
+                },
+                {
+                  "description": "NSAID or muscle relaxant trial >= 42 days",
+                  "fact": "medication",
+                  "codes": ["5640", "7258", "41493", "1191", "3423", "2356"],
+                  "min_duration_days": 42
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "documentation": [
+    { "code": "clinical_note", "display": "Progress note with history, exam and neurological findings (last 60 days)" },
+    { "code": "imaging_order", "display": "Signed imaging order with clinical indication" },
+    { "code": "conservative_therapy_log", "display": "Record of PT visits and/or medication trial with dates" },
+    { "code": "prior_imaging_report", "display": "Prior lumbar X-ray report, if performed", "optional": true }
+  ]
+}

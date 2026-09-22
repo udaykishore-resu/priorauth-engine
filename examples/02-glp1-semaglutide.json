@@ -1,0 +1,43 @@
+{
+  "idempotency_key": "demo-glp1-0001",
+  "patient": { "id": "pat-2002", "member_id": "ACM-55120-02", "name": "Darnell Okafor", "birth_date": "1979-11-02T00:00:00Z", "sex": "male" },
+  "payer": { "id": "ACME_HEALTH", "plan": "PPO-GOLD" },
+  "provider": { "npi": "1987654321", "name": "Dr. Hannah Weiss, Endocrinology" },
+  "service": {
+    "code": "1991302",
+    "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+    "description": "semaglutide 1 mg/0.75 mL pen (Ozempic)",
+    "diagnoses": ["E11.65", "E66.01"],
+    "units": 3,
+    "service_date": "2026-09-25T00:00:00Z"
+  },
+  "attachments": [
+    { "type": "clinical_note", "ref": "DocumentReference/endo-2026-09-10" },
+    { "type": "weight_history", "ref": "DocumentReference/weights-2026" },
+    { "type": "prior_therapy_log", "ref": "MedicationRequest/metformin-2026-01" }
+  ],
+  "fhir_bundle": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      { "resource": { "resourceType": "Patient", "id": "pat-2002", "birthDate": "1979-11-02", "gender": "male" } },
+      { "resource": { "resourceType": "Condition", "id": "c-dm", "clinicalStatus": { "coding": [ { "code": "active" } ] },
+          "code": { "coding": [ { "system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "E11.65", "display": "Type 2 diabetes mellitus with hyperglycemia" } ] },
+          "onsetDateTime": "2023-04-11" } },
+      { "resource": { "resourceType": "Condition", "id": "c-ob", "clinicalStatus": { "coding": [ { "code": "active" } ] },
+          "code": { "coding": [ { "system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "E66.01", "display": "Morbid (severe) obesity due to excess calories" } ] } } },
+      { "resource": { "resourceType": "Observation", "id": "a1c-1", "status": "final",
+          "code": { "coding": [ { "system": "http://loinc.org", "code": "4548-4", "display": "Hemoglobin A1c" } ] },
+          "effectiveDateTime": "2026-08-30", "valueQuantity": { "value": 8.4, "unit": "%", "code": "%" } } },
+      { "resource": { "resourceType": "Observation", "id": "a1c-0", "status": "final",
+          "code": { "coding": [ { "system": "http://loinc.org", "code": "4548-4", "display": "Hemoglobin A1c" } ] },
+          "effectiveDateTime": "2026-02-14", "valueQuantity": { "value": 69, "unit": "mmol/mol", "code": "mmol/mol" } } },
+      { "resource": { "resourceType": "Observation", "id": "bmi", "status": "final",
+          "code": { "coding": [ { "system": "http://loinc.org", "code": "39156-5", "display": "Body mass index" } ] },
+          "effectiveDateTime": "2026-09-10", "valueQuantity": { "value": 36.2, "unit": "kg/m2", "code": "kg/m2" } } },
+      { "resource": { "resourceType": "MedicationStatement", "id": "met", "status": "active",
+          "medicationCodeableConcept": { "coding": [ { "system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "6809", "display": "metformin" } ] },
+          "effectivePeriod": { "start": "2026-01-15" } } }
+    ]
+  }
+}

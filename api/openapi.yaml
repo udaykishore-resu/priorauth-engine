@@ -1,0 +1,589 @@
+openapi: 3.1.0
+info:
+  title: priorauth-engine API
+  version: 1.0.0
+  summary: Prior authorization determination, evidence assembly and submission tracking.
+  description: |
+    Every request is an event-sourced aggregate moving through
+    `draft → determined → assembled → submitted → pended | approved | denied → appealed`.
+    Commands are `POST /v1/requests/{id}/<verb>`; each returns the full request document.
+    Guard failures return `409 invalid_transition`, validation problems `400 validation`,
+    payer transport failures `502 payer_unavailable`.
+  contact:
+    name: Udaykishore Resu
+    url: https://github.com/udaykishore-resu/priorauth-engine
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: requests
+  - name: queue
+  - name: rules
+  - name: metrics
+  - name: ops
+paths:
+  /v1/requests:
+    post:
+      tags: [requests]
+      summary: Create a prior authorization request (idempotent)
+      description: |
+        Idempotent on the `Idempotency-Key` header, else `idempotency_key` in the body, else a
+        SHA-256 of the content. A replay returns `200` with `Idempotent-Replay: true`.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema: { type: string }
+          required: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Intake' }
+      responses:
+        '201':
+          description: Created
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '200':
+          description: Idempotent replay of an existing request
+          headers:
+            Idempotent-Replay: { schema: { type: string, enum: ['true'] } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Request' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+    get:
+      tags: [requests]
+      summary: List requests (newest first)
+      parameters:
+        - in: query
+          name: state
+          schema: { $ref: '#/components/schemas/State' }
+        - in: query
+          name: payer
+          schema: { type: string }
+        - in: query
+          name: active
+          schema: { type: boolean }
+          description: Only non-terminal requests.
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Request' }
+                  count: { type: integer }
+        '400': { $ref: '#/components/responses/Validation' }
+  /v1/requests/{id}:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [requests]
+      summary: Get the projected request document
+      responses:
+        '200': { $ref: '#/components/responses/Request' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/requests/{id}/events:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    get:
+      tags: [requests]
+      summary: Raw event stream (audit)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id: { type: string }
+                  count: { type: integer }
+                  events:
+                    type: array
+                    items: { $ref: '#/components/schemas/Envelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/requests/{id}/determine:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [requests]
+      summary: Run the deterministic coverage-rule determination
+      description: |
+        Extracts structured facts from the FHIR bundle, selects the most specific rule for
+        payer/plan/service/diagnosis and records `decision` (`required`, `not_required`,
+        `indeterminate`), the criteria outcome and an explain tree. Allowed in `draft` and
+        `determined`.
+      responses:
+        '200': { $ref: '#/components/responses/Request' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/requests/{id}/assemble:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [requests]
+      summary: Assemble the evidence package
+      description: |
+        Runs every extractor (structured FHIR, then the optional LLM proposer on free-text
+        notes), corroborates proposals against structured facts, applies human confirmations,
+        re-evaluates criteria and fills the documentation checklist. Raises exceptions for
+        unmet/unknown criteria, pending proposals and missing documentation. Allowed in
+        `determined` (required) and `assembled`.
+      responses:
+        '200': { $ref: '#/components/responses/Request' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/requests/{id}/submit:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [requests]
+      summary: Build the PAS Claim bundle and submit it to the payer
+      description: |
+        Guard: `assembled` with a complete evidence package, or `appealed` without an
+        outstanding appeal submission. The payer's ClaimResponse is interpreted immediately
+        (approved / denied / pended).
+      responses:
+        '200': { $ref: '#/components/responses/Request' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502':
+          description: Payer unavailable; a `submission_failed` exception was recorded and the request is retryable.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code: { type: string, enum: [payer_unavailable] }
+                  error: { type: string }
+                  request: { $ref: '#/components/schemas/Request' }
+  /v1/requests/{id}/sync:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [requests]
+      summary: Inquire the payer about a submitted/pended/appealed request now
+      responses:
+        '200': { $ref: '#/components/responses/Request' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '502': { $ref: '#/components/responses/PayerUnavailable' }
+  /v1/requests/{id}/review:
+    parameters:
+      - $ref: '#/components/parameters/id'
+    post:
+      tags: [requests]
+      summary: Record a human decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Review' }
+      responses:
+        '200': { $ref: '#/components/responses/Request' }
+        '400': { $ref: '#/components/responses/Validation' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/queue/exceptions:
+    get:
+      tags: [queue]
+      summary: The human work queue, ordered by severity, urgency and age
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExceptionItem' }
+  /v1/rules:
+    get:
+      tags: [rules]
+      summary: The active, versioned rule set
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuleSet' }
+  /v1/metrics/turnaround:
+    get:
+      tags: [metrics]
+      summary: Turnaround statistics (created → final decision)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TurnaroundStats' }
+  /healthz:
+    get:
+      tags: [ops]
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  version: { type: string }
+  /readyz:
+    get:
+      tags: [ops]
+      summary: Readiness (repository, payer gateway, rules); 503 while draining
+      responses:
+        '200': { description: Ready }
+        '503': { description: Not ready or draining }
+  /metrics:
+    get:
+      tags: [ops]
+      summary: Prometheus exposition
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain: {}
+components:
+  parameters:
+    id:
+      in: path
+      name: id
+      required: true
+      schema: { type: string }
+  responses:
+    Request:
+      description: The request document
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Request' }
+    Validation:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Unknown request id
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Transition guard rejected the command, or a concurrent modification happened
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooLarge:
+      description: Body exceeds PA_HTTP_MAX_BODY_BYTES
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PayerUnavailable:
+      description: Payer transport failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [code, error]
+      properties:
+        code:
+          type: string
+          enum: [validation, not_found, invalid_transition, concurrent_modification, payer_unavailable, timeout, body_too_large, internal]
+        error: { type: string }
+    State:
+      type: string
+      enum: [draft, determined, assembled, submitted, pended, approved, denied, appealed, closed]
+    Intake:
+      type: object
+      required: [patient, payer, provider, service]
+      properties:
+        idempotency_key: { type: string }
+        patient:
+          type: object
+          required: [id, member_id, birth_date]
+          properties:
+            id: { type: string }
+            member_id: { type: string }
+            name: { type: string }
+            birth_date: { type: string, format: date-time }
+            sex: { type: string }
+        payer:
+          type: object
+          required: [id]
+          properties:
+            id: { type: string }
+            plan: { type: string, description: Defaults to "*" }
+        provider:
+          type: object
+          required: [npi]
+          properties:
+            npi: { type: string, pattern: '^[0-9]{10}$' }
+            name: { type: string }
+        service:
+          type: object
+          required: [code, diagnoses, service_date]
+          properties:
+            code: { type: string, description: CPT / HCPCS / RxNorm }
+            system: { type: string, description: Defaults to the CPT system URL }
+            description: { type: string }
+            diagnoses: { type: array, items: { type: string }, minItems: 1, description: ICD-10-CM }
+            units: { type: integer, minimum: 1 }
+            service_date: { type: string, format: date-time }
+            urgent: { type: boolean }
+        fhir_bundle:
+          type: object
+          description: FHIR R4 Bundle with Patient, Condition, Observation, MedicationStatement, Procedure.
+        notes:
+          type: array
+          items:
+            type: object
+            required: [id, text]
+            properties:
+              id: { type: string }
+              type: { type: string }
+              authored: { type: string, format: date-time }
+              text: { type: string }
+        attachments:
+          type: array
+          items:
+            type: object
+            required: [type, ref]
+            properties:
+              type: { type: string, description: Matches a rule documentation code }
+              ref: { type: string }
+              title: { type: string }
+    Review:
+      type: object
+      required: [action, actor]
+      properties:
+        action:
+          type: string
+          enum: [confirm_evidence, reject_evidence, override_criteria, set_determination, appeal, withdraw]
+        actor: { type: string }
+        reason: { type: string }
+        fact_ids: { type: array, items: { type: string } }
+        decision: { type: string, enum: [required, not_required] }
+    Quantity:
+      type: object
+      properties:
+        value: { type: number }
+        unit: { type: string }
+    Fact:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [demographic, diagnosis, medication, procedure, observation] }
+        system: { type: string }
+        code: { type: string }
+        display: { type: string }
+        status: { type: string }
+        value: { $ref: '#/components/schemas/Quantity' }
+        text: { type: string }
+        effective: { type: string, format: date-time }
+        provenance:
+          type: object
+          properties:
+            origin: { type: string, enum: [structured, llm, human] }
+            resource_type: { type: string }
+            resource_id: { type: string }
+            extractor: { type: string }
+            snippet: { type: string }
+            confidence: { type: number }
+            corroborated: { type: boolean }
+            confirmed_by: { type: string }
+    ExplainNode:
+      type: object
+      properties:
+        description: { type: string }
+        outcome: { type: string, enum: [met, not_met, unknown] }
+        reason: { type: string }
+        evidence: { type: array, items: { type: string } }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/ExplainNode' }
+    DocRequirement:
+      type: object
+      properties:
+        code: { type: string }
+        display: { type: string }
+        optional: { type: boolean }
+    Determination:
+      type: object
+      properties:
+        decision: { type: string, enum: [required, not_required, indeterminate] }
+        rule_ref: { type: string, description: 'id@version, "none", or human:<actor>' }
+        rule_name: { type: string }
+        rule_set_hash: { type: string }
+        criteria: { type: string, enum: [met, not_met, unknown] }
+        explain: { $ref: '#/components/schemas/ExplainNode' }
+        missing_data: { type: array, items: { type: string } }
+        documentation: { type: array, items: { $ref: '#/components/schemas/DocRequirement' } }
+        facts_used: { type: integer }
+        evaluated_at: { type: string, format: date-time }
+    Package:
+      type: object
+      properties:
+        facts: { type: array, items: { $ref: '#/components/schemas/Fact' } }
+        criteria: { type: string, enum: [met, not_met, unknown] }
+        explain: { $ref: '#/components/schemas/ExplainNode' }
+        missing_data: { type: array, items: { type: string } }
+        documentation:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              display: { type: string }
+              optional: { type: boolean }
+              satisfied: { type: boolean }
+              source: { type: string }
+        proposals: { type: integer }
+        complete: { type: boolean }
+        extractors: { type: array, items: { type: string } }
+        warnings: { type: array, items: { type: string } }
+        assembled_at: { type: string, format: date-time }
+    PayerDecision:
+      type: object
+      properties:
+        outcome: { type: string, enum: [approved, denied, pended] }
+        payer_ref: { type: string }
+        auth_number: { type: string }
+        reasons: { type: array, items: { type: string } }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time }
+        received_at: { type: string, format: date-time }
+        raw: { type: object, description: The ClaimResponse as received }
+    Exception:
+      type: object
+      properties:
+        code: { type: string }
+        detail: { type: string }
+        severity: { type: string, enum: [info, warning, critical] }
+        raised_at: { type: string, format: date-time }
+    Request:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        state: { $ref: '#/components/schemas/State' }
+        intake: { $ref: '#/components/schemas/Intake' }
+        determination: { $ref: '#/components/schemas/Determination' }
+        evidence: { $ref: '#/components/schemas/Package' }
+        submission:
+          type: object
+          properties:
+            claim_id: { type: string }
+            payer_ref: { type: string }
+            attempt: { type: integer }
+            appeal: { type: boolean }
+            submitted_at: { type: string, format: date-time }
+        decision: { $ref: '#/components/schemas/PayerDecision' }
+        reviews: { type: array, items: { $ref: '#/components/schemas/Review' } }
+        exceptions: { type: array, items: { $ref: '#/components/schemas/Exception' } }
+        breached: { type: array, items: { type: string } }
+        appeals: { type: integer }
+        confirmed_facts: { type: object, additionalProperties: { type: string } }
+        rejected_facts: { type: object, additionalProperties: { type: string } }
+        override: { $ref: '#/components/schemas/Review' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        determined_at: { type: string, format: date-time }
+        assembled_at: { type: string, format: date-time }
+        submitted_at: { type: string, format: date-time }
+        decided_at: { type: string, format: date-time }
+        closed_reason: { type: string }
+    Envelope:
+      type: object
+      properties:
+        id: { type: string }
+        request_id: { type: string }
+        seq: { type: integer }
+        type:
+          type: string
+          enum: [request.created, determination.recorded, evidence.assembled, submission.sent, payer.responded, review.recorded, appeal.filed, exception.raised, exception.resolved, sla.breached, request.closed]
+        at: { type: string, format: date-time }
+        actor: { type: string }
+        trace_id: { type: string }
+        payload: { type: object }
+    ExceptionItem:
+      type: object
+      properties:
+        request_id: { type: string }
+        state: { $ref: '#/components/schemas/State' }
+        payer: { type: string }
+        service_code: { type: string }
+        patient_id: { type: string }
+        urgent: { type: boolean }
+        exception: { $ref: '#/components/schemas/Exception' }
+        age: { type: string }
+        suggested_action: { type: string }
+    Rule:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: integer }
+        name: { type: string }
+        payer: { type: string }
+        plan: { type: string }
+        service_codes: { type: array, items: { type: string } }
+        diagnosis_scope: { type: array, items: { type: string } }
+        effective_from: { type: string, format: date-time }
+        effective_to: { type: string, format: date-time }
+        requires_auth: { type: boolean }
+        criteria: { type: object, description: Predicate tree (all/any/not/at_least/fact) }
+        documentation: { type: array, items: { $ref: '#/components/schemas/DocRequirement' } }
+        source: { type: string }
+    RuleSet:
+      type: object
+      properties:
+        rules: { type: array, items: { $ref: '#/components/schemas/Rule' } }
+        hash: { type: string }
+        loaded_at: { type: string, format: date-time }
+    Percentiles:
+      type: object
+      properties:
+        count: { type: integer }
+        p50_seconds: { type: number }
+        p95_seconds: { type: number }
+        mean_seconds: { type: number }
+        max_seconds: { type: number }
+    TurnaroundStats:
+      type: object
+      properties:
+        as_of: { type: string, format: date-time }
+        total: { type: integer }
+        in_flight: { type: integer }
+        open_exceptions: { type: integer }
+        by_state: { type: object, additionalProperties: { type: integer } }
+        decided: { $ref: '#/components/schemas/Percentiles' }
+        by_payer: { type: object, additionalProperties: { $ref: '#/components/schemas/Percentiles' } }
+        by_outcome: { type: object, additionalProperties: { $ref: '#/components/schemas/Percentiles' } }
+        auto_determined_ratio: { type: number }
+        sla_breaches: { type: object, additionalProperties: { type: integer } }
+        payer_outcomes:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: { type: integer }

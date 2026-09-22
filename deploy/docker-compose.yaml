@@ -1,0 +1,93 @@
+# Full local stack: Postgres (event store + projection), Kafka in KRaft mode,
+# OpenTelemetry collector, the payer simulator and the engine itself.
+#   make run-full            # infra + engine on the host
+#   docker compose -f deploy/docker-compose.yaml up --build   # everything in containers
+name: priorauth
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: priorauth
+      POSTGRES_PASSWORD: priorauth
+      POSTGRES_DB: priorauth
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U priorauth -d priorauth"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:29092,CONTROLLER://:9093,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+      CLUSTER_ID: priorauth-local-cluster-0001
+    ports: ["9092:9092"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel/collector.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4318:4318"   # OTLP/HTTP in
+      - "8889:8889"   # Prometheus exporter out
+
+  payer-sim:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    entrypoint: ["/app/payer-sim"]
+    environment:
+      SIM_HTTP_ADDR: ":8081"
+      SIM_MODE: smart
+      SIM_LATENCY: 250ms
+      SIM_PEND_FLIPS: "2"
+    ports: ["8081:8081"]
+
+  priorauth:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      payer-sim: { condition: service_started }
+    environment:
+      PA_HTTP_ADDR: ":8080"
+      PA_LOG_LEVEL: info
+      PA_STORAGE: postgres
+      PA_POSTGRES_DSN: postgres://priorauth:priorauth@postgres:5432/priorauth?sslmode=disable
+      PA_EVENTS: kafka
+      PA_KAFKA_BROKERS: kafka:29092
+      PA_KAFKA_TOPIC: priorauth.events
+      PA_PAYER: http
+      PA_PAYER_BASE_URL: http://payer-sim:8081
+      PA_PAYER_POLL_INTERVAL: 10s
+      PA_OTLP_ENDPOINT: http://otel-collector:4318
+      PA_RULES_DIR: /app/rules
+    ports: ["8080:8080"]
+    profiles: ["all"]
+
+volumes:
+  pgdata: {}

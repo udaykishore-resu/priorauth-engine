@@ -1,0 +1,17 @@
+# Apply with:
+#   gh repo edit udaykishore-resu/priorauth-engine --description "$(yq '.description' .github/repo-metadata.yaml)"
+#   yq '.topics[]' .github/repo-metadata.yaml | xargs -I{} gh repo edit udaykishore-resu/priorauth-engine --add-topic {}
+description: "Prior authorization automation engine: deterministic coverage rules-as-code with explain trees, FHIR evidence assembly (with a bounded LLM extractor), an event-sourced Draft→Determined→Assembled→Submitted→Pended/Approved/Denied→Appealed workflow with SLA timers, and Da Vinci PAS-shaped submission to a simulated payer."
+topics:
+  - go
+  - kubernetes
+  - healthcare
+  - prior-authorization
+  - fhir
+  - hl7-fhir
+  - da-vinci
+  - event-sourcing
+  - state-machine
+  - rules-engine
+  - postgres
+  - kafka

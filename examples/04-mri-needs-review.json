@@ -1,0 +1,32 @@
+{
+  "idempotency_key": "demo-mri-review-0001",
+  "patient": { "id": "pat-4004", "member_id": "ACM-19080-04", "name": "Samuel Greene", "birth_date": "1962-08-30T00:00:00Z", "sex": "male" },
+  "payer": { "id": "ACME_HEALTH", "plan": "HMO-SILVER" },
+  "provider": { "npi": "1234567893", "name": "Dr. Priya Natarajan, Orthopedics" },
+  "service": {
+    "code": "72148",
+    "description": "MRI lumbar spine without contrast",
+    "diagnoses": ["M54.5"],
+    "service_date": "2026-09-30T00:00:00Z",
+    "urgent": true
+  },
+  "attachments": [
+    { "type": "clinical_note", "ref": "DocumentReference/note-2026-09-15" },
+    { "type": "imaging_order", "ref": "ServiceRequest/img-9921" },
+    { "type": "conservative_therapy_log", "ref": "DocumentReference/therapy-log-9921" }
+  ],
+  "notes": [
+    { "id": "note-2026-09-15", "type": "clinical_note", "authored": "2026-09-15T09:00:00Z",
+      "text": "64M with acute low back pain x 3 weeks. New foot drop on the right with 3/5 dorsiflexion, saddle numbness denied. Completed 8 physical therapy sessions (97110) between July and September at an outside clinic. Urgent MRI requested to rule out compressive lesion." }
+  ],
+  "fhir_bundle": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      { "resource": { "resourceType": "Patient", "id": "pat-4004", "birthDate": "1962-08-30", "gender": "male" } },
+      { "resource": { "resourceType": "Condition", "id": "c-lbp", "clinicalStatus": { "coding": [ { "code": "active" } ] },
+          "code": { "coding": [ { "system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "M54.50", "display": "Low back pain, unspecified" } ] },
+          "onsetDateTime": "2026-08-25" } }
+    ]
+  }
+}

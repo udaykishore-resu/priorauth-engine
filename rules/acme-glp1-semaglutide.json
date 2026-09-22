@@ -1,0 +1,96 @@
+{
+  "id": "acme.pharmacy.glp1-semaglutide",
+  "version": 5,
+  "name": "GLP-1 receptor agonist: semaglutide (Ozempic/Wegovy/Rybelsus)",
+  "payer": "ACME_HEALTH",
+  "plan": "*",
+  "service_codes": ["1991302", "2398841", "2200644"],
+  "effective_from": "2026-01-01T00:00:00Z",
+  "requires_auth": true,
+  "source": "ACME Pharmacy Policy PP-END-031 rev 2026-03",
+  "criteria": {
+    "description": "semaglutide is covered",
+    "all": [
+      { "fact": "age", "op": ">=", "value": 18, "description": "adult (>= 18 years)" },
+      {
+        "description": "type 2 diabetes pathway OR chronic weight management pathway",
+        "any": [
+          {
+            "description": "type 2 diabetes with inadequate control on metformin",
+            "all": [
+              { "description": "diagnosis of type 2 diabetes mellitus", "fact": "diagnosis", "codes": ["E11.*"] },
+              {
+                "description": "HbA1c >= 7.0% within the last 180 days",
+                "fact": "observation",
+                "code": "4548-4",
+                "op": ">=",
+                "value": 7.0,
+                "unit": "%",
+                "within_days": 180
+              },
+              {
+                "description": "metformin trial >= 90 days",
+                "fact": "medication",
+                "codes": ["6809", "861007", "860975"],
+                "min_duration_days": 90
+              }
+            ]
+          },
+          {
+            "description": "chronic weight management",
+            "all": [
+              {
+                "description": "BMI >= 30, or BMI >= 27 with a weight-related comorbidity",
+                "any": [
+                  {
+                    "description": "BMI >= 30 kg/m2 within the last 180 days",
+                    "fact": "observation",
+                    "code": "39156-5",
+                    "op": ">=",
+                    "value": 30,
+                    "unit": "kg/m2",
+                    "within_days": 180
+                  },
+                  {
+                    "all": [
+                      {
+                        "description": "BMI >= 27 kg/m2 within the last 180 days",
+                        "fact": "observation",
+                        "code": "39156-5",
+                        "op": ">=",
+                        "value": 27,
+                        "unit": "kg/m2",
+                        "within_days": 180
+                      },
+                      {
+                        "description": "weight-related comorbidity (hypertension, dyslipidemia, OSA, prediabetes)",
+                        "fact": "diagnosis",
+                        "codes": ["I10", "I11.*", "E78.*", "G47.33", "R73.0*"]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "description": "documented lifestyle programme >= 90 days (diet/exercise counselling)",
+                "fact": "procedure",
+                "codes": ["G0447", "G0473", "97802", "97803", "99401", "99402"],
+                "min_count": 2,
+                "within_days": 365
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "description": "no personal or family history of medullary thyroid carcinoma / MEN2",
+        "not": { "fact": "diagnosis", "codes": ["C73", "E31.22", "E31.23", "Z80.8"] }
+      }
+    ]
+  },
+  "documentation": [
+    { "code": "clinical_note", "display": "Prescriber note with diagnosis, treatment goals and contraindication screen" },
+    { "code": "weight_history", "display": "Weight/BMI measurements over the last 6 months" },
+    { "code": "prior_therapy_log", "display": "Prior therapy record: metformin dates or lifestyle programme attendance" }
+  ]
+}

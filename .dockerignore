@@ -1,0 +1,8 @@
+bin/
+coverage.out
+.git/
+.github/
+deploy/
+docs/
+*.md
+!README.md

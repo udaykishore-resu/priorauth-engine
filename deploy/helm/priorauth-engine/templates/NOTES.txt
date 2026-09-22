@@ -1,0 +1,6 @@
+priorauth-engine {{ .Chart.AppVersion }} deployed as {{ include "priorauth-engine.fullname" . }}.
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "priorauth-engine.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -s localhost:8080/readyz
+
+Secrets come from the existing Secret "{{ .Values.existingSecret }}" (PA_POSTGRES_DSN, optional PA_LLM_*).

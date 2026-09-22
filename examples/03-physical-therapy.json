@@ -1,0 +1,31 @@
+{
+  "idempotency_key": "demo-pt-0001",
+  "patient": { "id": "pat-3003", "member_id": "ACM-70455-03", "name": "Li Wen", "birth_date": "1992-02-29T00:00:00Z", "sex": "female" },
+  "payer": { "id": "ACME_HEALTH", "plan": "HMO-SILVER" },
+  "provider": { "npi": "1122334455", "name": "Riverside Physical Therapy" },
+  "service": {
+    "code": "97110",
+    "description": "Therapeutic exercise, 12 visits",
+    "diagnoses": ["M25.561", "S83.511D"],
+    "units": 12,
+    "service_date": "2026-09-22T00:00:00Z",
+    "urgent": false
+  },
+  "attachments": [
+    { "type": "pt_evaluation", "ref": "DocumentReference/pt-eval-2026-09-01" },
+    { "type": "plan_of_care", "ref": "CarePlan/poc-2026-09-01" }
+  ],
+  "fhir_bundle": {
+    "resourceType": "Bundle",
+    "type": "collection",
+    "entry": [
+      { "resource": { "resourceType": "Patient", "id": "pat-3003", "birthDate": "1992-02-29", "gender": "female" } },
+      { "resource": { "resourceType": "Condition", "id": "c-knee", "clinicalStatus": { "coding": [ { "code": "active" } ] },
+          "code": { "coding": [ { "system": "http://hl7.org/fhir/sid/icd-10-cm", "code": "S83.511D", "display": "Sprain of ACL of right knee, subsequent encounter" } ] },
+          "onsetDateTime": "2026-07-19" } },
+      { "resource": { "resourceType": "Procedure", "id": "eval", "status": "completed",
+          "code": { "coding": [ { "system": "http://www.ama-assn.org/go/cpt", "code": "97162", "display": "PT evaluation, moderate complexity" } ] },
+          "performedDateTime": "2026-09-01" } }
+    ]
+  }
+}
